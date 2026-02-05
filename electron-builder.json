@@ -1,0 +1,73 @@
+{
+  "appId": "com.tonybiz.mri-reader",
+  "productName": "MRI Reader",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "afterSign": "scripts/notarize.js",
+  "mac": {
+    "category": "public.app-category.medical",
+    "icon": "build/icons/icon.icns",
+    "hardenedRuntime": true,
+    "gatekeeperAssess": false,
+    "entitlements": "build/entitlements.mac.plist",
+    "entitlementsInherit": "build/entitlements.mac.plist",
+    "target": [
+      {
+        "target": "dmg",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64", "arm64"]
+      }
+    ],
+    "extendInfo": {
+      "CFBundleName": "MRI Reader",
+      "CFBundleDisplayName": "MRI Reader",
+      "CFBundleIdentifier": "com.tonybiz.mri-reader",
+      "NSHumanReadableCopyright": "Copyright © 2026 Tony Biz"
+    }
+  },
+  "win": {
+    "icon": "build/icons/icon.ico",
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64", "ia32"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64", "ia32"]
+      }
+    ],
+    "publisherName": "Tony Biz"
+  },
+  "linux": {
+    "icon": "build/icons/icon.png",
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      },
+      {
+        "target": "deb",
+        "arch": ["x64"]
+      }
+    ],
+    "category": "Science"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "build/icons/icon.ico",
+    "uninstallerIcon": "build/icons/icon.ico",
+    "installerHeaderIcon": "build/icons/icon.ico"
+  }
+}
