@@ -18,6 +18,9 @@ sample_data/
 # Local todos (session-specific)
 todos/
 
+# Local solutions documentation (session-specific)
+docs/solutions/
+
 # Environment
 .env
 .env.local
