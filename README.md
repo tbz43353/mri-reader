@@ -135,6 +135,16 @@ Installers will be created in the `release/` directory.
 
 Contributions are welcome! Please open an issue first to discuss what you'd like to change.
 
+## Support This Project
+
+If you find MRI Reader useful, please consider supporting its development:
+
+- ⭐ **Star this repo** - It helps others discover the project
+- 💖 **[GitHub Sponsors](https://github.com/sponsors/tbz43353)** - Monthly or one-time sponsorship
+- ☕ **[Ko-fi](https://ko-fi.com/tonybiz)** - Buy me a coffee
+
+Your support helps me dedicate more time to adding features, fixing bugs, and maintaining this project. Thank you!
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
