@@ -30,17 +30,9 @@ If macOS blocks the app:
 1. Go to **System Settings** → **Privacy & Security**
 2. Scroll down and click **"Open Anyway"**
 
-### Windows
+### Windows & Linux
 
-**Download:** Get the latest `.exe` installer from the [Releases page](https://github.com/tbz43353/mri-reader/releases)
-
-1. Download `MRI.Reader.Setup.1.0.0.exe`
-2. Run the installer
-3. If Windows SmartScreen appears, click "More info" then "Run anyway"
-
-### Linux
-
-Download the AppImage or .deb package from the [Releases page](https://github.com/tbz43353/mri-reader/releases).
+Coming soon. For now, you can [build from source](#building-from-source).
 
 ## Usage
 
