@@ -13,6 +13,8 @@ MRI Reader lets you view your medical scan data privately on your computer. Insp
 - **Cross-Platform** - Works on macOS, Windows, and Linux
 - **Open Source** - MIT licensed, free to use and modify
 
+![MRI Reader - Viewing a knee MRI scan](screenshots/Screenshot01.png)
+
 ## Installation
 
 ### macOS
