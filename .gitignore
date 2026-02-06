@@ -23,6 +23,9 @@ docs/solutions/
 docs/plans/
 secrets/
 
+# Screenshots
+screen_shots/
+
 # Environment
 .env
 .env.local
