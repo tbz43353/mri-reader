@@ -21,6 +21,7 @@ todos/
 # Local solutions documentation (session-specific)
 docs/solutions/
 docs/plans/
+secrets/
 
 # Environment
 .env

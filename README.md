@@ -17,7 +17,7 @@ MRI Reader lets you view your medical scan data privately on your computer. Insp
 
 ### macOS
 
-**Download:** Get the latest `.dmg` file from the [Releases page](https://github.com/tbz43353/mri-reader-app/releases)
+**Download:** Get the latest `.dmg` file from the [Releases page](https://github.com/tbz43353/mri-reader/releases)
 
 1. Download `MRI.Reader-1.0.0.dmg` (Intel) or `MRI.Reader-1.0.0-arm64.dmg` (Apple Silicon)
 2. Open the downloaded DMG file
@@ -32,7 +32,7 @@ If macOS blocks the app:
 
 ### Windows
 
-**Download:** Get the latest `.exe` installer from the [Releases page](https://github.com/tbz43353/mri-reader-app/releases)
+**Download:** Get the latest `.exe` installer from the [Releases page](https://github.com/tbz43353/mri-reader/releases)
 
 1. Download `MRI.Reader.Setup.1.0.0.exe`
 2. Run the installer
@@ -40,7 +40,7 @@ If macOS blocks the app:
 
 ### Linux
 
-Download the AppImage or .deb package from the [Releases page](https://github.com/tbz43353/mri-reader-app/releases).
+Download the AppImage or .deb package from the [Releases page](https://github.com/tbz43353/mri-reader/releases).
 
 ## Usage
 
@@ -101,8 +101,8 @@ The authors and contributors are not liable for any decisions made based on imag
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/tbz43353/mri-reader-app.git
-cd mri-reader-app
+git clone https://github.com/tbz43353/mri-reader.git
+cd mri-reader
 ```
 
 2. Install dependencies:
@@ -159,4 +159,4 @@ Created by **Tony Biz**
 
 ---
 
-**Questions or Issues?** Open an issue on [GitHub](https://github.com/tbz43353/mri-reader-app/issues)
+**Questions or Issues?** Open an issue on [GitHub](https://github.com/tbz43353/mri-reader/issues)
