@@ -13,13 +13,11 @@ MRI Reader lets you view your medical scan data privately on your computer. Insp
 - **Cross-Platform** - Works on macOS, Windows, and Linux
 - **Open Source** - MIT licensed, free to use and modify
 
-![MRI Reader - Viewing a knee MRI scan](screenshots/Screenshot01.png)
-
 ## Installation
 
 ### macOS
 
-**Download:** Get the latest `.dmg` file from the [Releases page](https://github.com/tbz43353/mri-reader/releases)
+**Download:** Get the latest `.dmg` file from the [Releases page](https://github.com/tbz43353/mri-reader-app/releases)
 
 1. Download `MRI.Reader-1.0.0.dmg` (Intel) or `MRI.Reader-1.0.0-arm64.dmg` (Apple Silicon)
 2. Open the downloaded DMG file
@@ -32,9 +30,17 @@ If macOS blocks the app:
 1. Go to **System Settings** → **Privacy & Security**
 2. Scroll down and click **"Open Anyway"**
 
-### Windows & Linux
+### Windows
 
-Coming soon. For now, you can [build from source](#building-from-source).
+**Download:** Get the latest `.exe` installer from the [Releases page](https://github.com/tbz43353/mri-reader-app/releases)
+
+1. Download `MRI.Reader.Setup.1.0.0.exe`
+2. Run the installer
+3. If Windows SmartScreen appears, click "More info" then "Run anyway"
+
+### Linux
+
+Download the AppImage or .deb package from the [Releases page](https://github.com/tbz43353/mri-reader-app/releases).
 
 ## Usage
 
@@ -95,8 +101,8 @@ The authors and contributors are not liable for any decisions made based on imag
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/tbz43353/mri-reader.git
-cd mri-reader
+git clone https://github.com/tbz43353/mri-reader-app.git
+cd mri-reader-app
 ```
 
 2. Install dependencies:
@@ -137,16 +143,6 @@ Installers will be created in the `release/` directory.
 
 Contributions are welcome! Please open an issue first to discuss what you'd like to change.
 
-## Support This Project
-
-If you find MRI Reader useful, please consider supporting its development:
-
-- ⭐ **Star this repo** - It helps others discover the project
-- 💖 **[GitHub Sponsors](https://github.com/sponsors/tbz43353)** - Monthly or one-time sponsorship
-- ☕ **[Ko-fi](https://ko-fi.com/tonybiz)** - Buy me a coffee
-
-Your support helps me dedicate more time to adding features, fixing bugs, and maintaining this project. Thank you!
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
@@ -163,4 +159,4 @@ Created by **Tony Biz**
 
 ---
 
-**Questions or Issues?** Open an issue on [GitHub](https://github.com/tbz43353/mri-reader/issues)
+**Questions or Issues?** Open an issue on [GitHub](https://github.com/tbz43353/mri-reader-app/issues)

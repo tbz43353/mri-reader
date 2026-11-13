@@ -16,6 +16,17 @@ export default defineConfig({
   server: {
     port: 5175,
     strictPort: false,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
+  },
+  preview: {
+    port: 5175,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp',
+    },
   },
   worker: {
     // Use ES module format for workers (required for code-splitting builds)
@@ -43,7 +54,7 @@ export default defineConfig({
   optimizeDeps: {
     // Exclude dicom-image-loader from pre-bundling (it has web workers that need special handling)
     exclude: ['@cornerstonejs/dicom-image-loader', '@icr/polyseg-wasm'],
-    // Include dicom-parser to ensure it's properly bundled
-    include: ['dicom-parser'],
+    // Include dicom-parser and comlink to ensure they are properly bundled
+    include: ['dicom-parser', 'comlink'],
   },
 });

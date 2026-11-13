@@ -62,7 +62,20 @@ body {
   width: 100%;
   height: 100%;
   background: #000;
-  cursor: default !important;
+  cursor: grab !important;
+  user-select: none;
+}
+
+.cornerstone-viewport:active {
+  cursor: grabbing !important;
+}
+
+/* Force smooth, high-fidelity rendering instead of pixelated blocks */
+.cornerstone-viewport canvas,
+canvas.cornerstone-canvas {
+  image-rendering: auto !important;
+  image-rendering: smooth !important;
+  image-rendering: -webkit-optimize-contrast !important;
 }
 
 /* Hide Cornerstone's SVG cursor overlay - not useful for this app */

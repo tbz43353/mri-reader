@@ -20,6 +20,25 @@ let TEMP_DIR: string;
 // DICOM file extensions
 const DICOM_EXTENSIONS = ['.dcm', '.dicom', '.ima'];
 
+// Known non-DICOM extensions to ignore when scanning directories/archives
+const NON_DICOM_EXTENSIONS = new Set([
+  '.zip', '.gz', '.tar', '.rar', '.7z',
+  '.json', '.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.bmp', '.tiff', '.tif',
+  '.xml', '.html', '.css', '.js', '.ts', '.md', '.csv', '.log',
+  '.exe', '.dll', '.dylib', '.so',
+]);
+
+function isPotentialDicomFile(name: string): boolean {
+  if (name.startsWith('.') || name.startsWith('._') || name === 'Thumbs.db') {
+    return false;
+  }
+  const ext = extname(name).toLowerCase();
+  if (NON_DICOM_EXTENSIONS.has(ext)) {
+    return false;
+  }
+  return true;
+}
+
 // Security limits for DICOM parsing
 const DICOM_SECURITY = {
   maxFileSize: 500 * 1024 * 1024, // 500MB max per file
@@ -286,11 +305,11 @@ async function scanForDicomFiles(dirPath: string): Promise<string[]> {
       const fullPath = join(currentPath, entry.name);
 
       if (entry.isDirectory()) {
-        await scan(fullPath);
+        if (!entry.name.startsWith('.') && entry.name !== '__MACOSX') {
+          await scan(fullPath);
+        }
       } else if (entry.isFile()) {
-        const ext = extname(entry.name).toLowerCase();
-        // Include files with DICOM extensions or no extension (common for DICOM)
-        if (DICOM_EXTENSIONS.includes(ext) || ext === '') {
+        if (isPotentialDicomFile(entry.name)) {
           files.push(fullPath);
         }
       }
@@ -304,6 +323,104 @@ async function scanForDicomFiles(dirPath: string): Promise<string[]> {
 
   await scan(dirPath);
   return files;
+}
+
+// Helper: Extract ZIP and return DICOM scan result
+async function extractAndLoadZip(zipPath: string): Promise<{ basePath: string; files: string[]; fileCount: number }> {
+  // Check ZIP file size before attempting to load it
+  const zipStat = await stat(zipPath);
+  if (zipStat.size > DICOM_SECURITY.maxZipSize) {
+    throw new Error(
+      `ZIP file is too large (${formatBytes(zipStat.size)}). ` +
+      `Maximum supported size is ${formatBytes(DICOM_SECURITY.maxZipSize)}. ` +
+      `Try extracting the ZIP manually and using "Open Folder" instead.`
+    );
+  }
+
+  // Create extraction directory in temp
+  const extractDir = join(TEMP_DIR, 'extract-' + crypto.randomUUID());
+  await mkdir(extractDir, { recursive: true });
+
+  // Add extraction directory to allowed paths
+  allowedBasePaths.add(extractDir);
+
+  try {
+    // Read and extract ZIP directly in main process
+    const zipBuffer = await readFile(zipPath);
+    const extracted = unzipSync(new Uint8Array(zipBuffer));
+
+    const savedPaths: string[] = [];
+
+    // Save extracted files
+    for (const [filePath, data] of Object.entries(extracted)) {
+      // Skip directories and metadata
+      if (filePath.endsWith('/') || filePath.includes('__MACOSX/')) continue;
+
+      const baseName = basename(filePath);
+      if (!isPotentialDicomFile(baseName)) {
+        continue;
+      }
+
+      // Security: Prevent path traversal
+      const normalized = normalize(filePath);
+      if (normalized.startsWith('..')) {
+        console.warn(`Skipping unsafe path: ${filePath}`);
+        continue;
+      }
+
+      const fullPath = join(extractDir, normalized);
+
+      // Ensure path stays within extract dir
+      if (!fullPath.startsWith(extractDir)) {
+        console.warn(`Skipping path traversal attempt: ${filePath}`);
+        continue;
+      }
+
+      // Create directory if needed
+      const dir = dirname(fullPath);
+      await mkdir(dir, { recursive: true });
+
+      // Write file
+      await writeFile(fullPath, data);
+      savedPaths.push(fullPath);
+
+      // Security: Limit total files
+      if (savedPaths.length >= DICOM_SECURITY.maxFilesPerStudy) {
+        break;
+      }
+    }
+
+    return {
+      basePath: extractDir,
+      files: savedPaths,
+      fileCount: savedPaths.length,
+    };
+  } catch (err) {
+    console.error('Failed to extract ZIP:', err);
+    try {
+      await rm(extractDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+
+    const errorMessage = err instanceof Error ? err.message : String(err);
+
+    if (errorMessage.includes('out of memory') ||
+        errorMessage.includes('allocation failed') ||
+        errorMessage.includes('Cannot allocate') ||
+        errorMessage.includes('ENOMEM')) {
+      throw new Error(
+        'Not enough memory to extract this ZIP file. ' +
+        'Try closing other applications, or extract the ZIP manually and use "Open Folder" instead.'
+      );
+    }
+
+    if (errorMessage.includes('invalid zip') || errorMessage.includes('Invalid')) {
+      throw new Error('This file does not appear to be a valid ZIP archive.');
+    }
+
+    throw err;
+  }
 }
 
 // Helper: Validate path is within allowed directories
@@ -361,104 +478,43 @@ ipcMain.handle('open-dicom-zip', async (event) => {
     return null;
   }
 
-  const zipPath = result.filePaths[0];
+  return extractAndLoadZip(result.filePaths[0]);
+});
 
-  // Check ZIP file size before attempting to load it
-  const zipStat = await stat(zipPath);
-  if (zipStat.size > DICOM_SECURITY.maxZipSize) {
-    throw new Error(
-      `ZIP file is too large (${formatBytes(zipStat.size)}). ` +
-      `Maximum supported size is ${formatBytes(DICOM_SECURITY.maxZipSize)}. ` +
-      `Try extracting the ZIP manually and using "Open Folder" instead.`
-    );
-  }
-
-  // Create extraction directory in temp
-  const extractDir = join(TEMP_DIR, 'extract-' + crypto.randomUUID());
-  await mkdir(extractDir, { recursive: true });
-
-  // Add extraction directory to allowed paths
-  allowedBasePaths.add(extractDir);
+// Open a dropped file or folder path directly
+ipcMain.handle('open-path', async (event, inputPath: string) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window) return null;
 
   try {
-    // Read and extract ZIP directly in main process
-    const zipBuffer = await readFile(zipPath);
-    const extracted = unzipSync(new Uint8Array(zipBuffer));
-
-    const savedPaths: string[] = [];
-
-    // Save extracted files
-    for (const [filePath, data] of Object.entries(extracted)) {
-      // Skip directories
-      if (filePath.endsWith('/')) continue;
-
-      // Check if it's a DICOM file
-      const ext = extname(filePath).toLowerCase();
-      if (!DICOM_EXTENSIONS.includes(ext) && ext !== '' && filePath.includes('.')) {
-        continue; // Skip non-DICOM files
-      }
-
-      // Security: Prevent path traversal
-      const normalized = normalize(filePath);
-      if (normalized.startsWith('..')) {
-        console.warn(`Skipping unsafe path: ${filePath}`);
-        continue;
-      }
-
-      const fullPath = join(extractDir, normalized);
-
-      // Ensure path stays within extract dir
-      if (!fullPath.startsWith(extractDir)) {
-        console.warn(`Skipping path traversal attempt: ${filePath}`);
-        continue;
-      }
-
-      // Create directory if needed
-      const dir = dirname(fullPath);
-      await mkdir(dir, { recursive: true });
-
-      // Write file
-      await writeFile(fullPath, data);
-      savedPaths.push(fullPath);
-
-      // Security: Limit total files
-      if (savedPaths.length >= DICOM_SECURITY.maxFilesPerStudy) {
-        break;
+    const fileStat = await stat(inputPath);
+    if (fileStat.isDirectory()) {
+      allowedBasePaths.add(inputPath);
+      const files = await scanForDicomFiles(inputPath);
+      return {
+        basePath: inputPath,
+        files: files,
+        fileCount: files.length,
+      };
+    } else if (fileStat.isFile()) {
+      const ext = extname(inputPath).toLowerCase();
+      if (ext === '.zip') {
+        return await extractAndLoadZip(inputPath);
+      } else if (isPotentialDicomFile(inputPath)) {
+        // Single DICOM file: allow and scan its containing folder
+        const parentDir = dirname(inputPath);
+        allowedBasePaths.add(parentDir);
+        const files = await scanForDicomFiles(parentDir);
+        return {
+          basePath: parentDir,
+          files: files,
+          fileCount: files.length,
+        };
       }
     }
-
-    return {
-      basePath: extractDir,
-      files: savedPaths,
-      fileCount: savedPaths.length,
-    };
+    return null;
   } catch (err) {
-    console.error('Failed to extract ZIP:', err);
-    // Clean up on failure
-    try {
-      await rm(extractDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
-
-    // Provide user-friendly error messages
-    const errorMessage = err instanceof Error ? err.message : String(err);
-
-    if (errorMessage.includes('out of memory') ||
-        errorMessage.includes('allocation failed') ||
-        errorMessage.includes('Cannot allocate') ||
-        errorMessage.includes('ENOMEM')) {
-      throw new Error(
-        'Not enough memory to extract this ZIP file. ' +
-        'Try closing other applications, or extract the ZIP manually and use "Open Folder" instead.'
-      );
-    }
-
-    if (errorMessage.includes('invalid zip') || errorMessage.includes('Invalid')) {
-      throw new Error('This file does not appear to be a valid ZIP archive.');
-    }
-
-    // Re-throw original error if not a known case
+    console.error('Failed to open dropped path:', err);
     throw err;
   }
 });

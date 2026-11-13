@@ -15,9 +15,11 @@ export interface FileInfo {
 export interface ElectronAPI {
   openDicomFolder: () => Promise<DicomScanResult | null>;
   openDicomZip: () => Promise<DicomScanResult | null>;
-  readFile: (filePath: string) => Promise<Buffer>;
+  openPath: (filePath: string) => Promise<DicomScanResult | null>;
+  getPathForFile: (file: File) => string;
+  readFile: (filePath: string) => Promise<Uint8Array | Buffer | ArrayBuffer>;
   getFileInfo: (filePath: string) => Promise<FileInfo>;
-  onMenuAction: (callback: (action: string) => void) => void;
+  onMenuAction: (callback: (action: string) => void) => (() => void);
   removeMenuListeners: () => void;
 }
 
