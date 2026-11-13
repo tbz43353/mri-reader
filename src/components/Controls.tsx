@@ -1,8 +1,13 @@
 import { useViewerStore, useCurrentSeries, useSliceCount } from '../lib/store';
-import { resetViewport } from '../lib/cornerstone';
+import { resetViewport, applyAdjustments } from '../lib/cornerstone';
 import { getPresetsForModality } from '../lib/terminology';
+import type { ViewingPreset } from '../types';
 
 export default function Controls() {
+  const adjustments = useViewerStore((s) => s.adjustments);
+  const activePresetId = adjustments.activePreset;
+  const applyPreset = useViewerStore((s) => s.applyPreset);
+  const resetAdjustments = useViewerStore((s) => s.resetAdjustments);
   const currentSliceIndex = useViewerStore((s) => s.currentSliceIndex);
   const setSliceIndex = useViewerStore((s) => s.setSliceIndex);
   const nextSlice = useViewerStore((s) => s.nextSlice);
@@ -10,6 +15,11 @@ export default function Controls() {
   const goToFirstSlice = useViewerStore((s) => s.goToFirstSlice);
   const goToLastSlice = useViewerStore((s) => s.goToLastSlice);
   const settings = useViewerStore((s) => s.settings);
+
+  const layout = useViewerStore((s) => s.layout);
+  const setLayout = useViewerStore((s) => s.setLayout);
+  const activeViewportIndex = useViewerStore((s) => s.activeViewportIndex);
+  const setActiveViewport = useViewerStore((s) => s.setActiveViewport);
 
   const currentSeries = useCurrentSeries();
   const sliceCount = useSliceCount();
@@ -23,12 +33,90 @@ export default function Controls() {
   };
 
   const handleReset = () => {
+    resetAdjustments();
     resetViewport();
+  };
+
+  const handlePresetClick = (preset: ViewingPreset) => {
+    applyPreset(preset.id);
+    applyAdjustments(0, 0, adjustments.invert, preset.id);
   };
 
   return (
     <div className="bg-panel-bg border-t border-gray-700 px-4 py-3">
       <div className="flex items-center gap-4">
+        {/* Layout Switcher (1x1 Single, 1x2 Split & 2x2 Quad) */}
+        <div className="flex items-center gap-1 border-r border-gray-700 pr-3">
+          <button
+            onClick={() => setLayout('1x1')}
+            className={`p-1.5 rounded transition-colors ${
+              layout === '1x1'
+                ? 'bg-accent/30 text-white border border-accent/50 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700 border border-transparent'
+            }`}
+            title="Single Viewport (1x1)"
+            aria-label="Single viewport layout"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
+            </svg>
+          </button>
+          <button
+            onClick={() => setLayout('1x2')}
+            className={`p-1.5 rounded transition-colors ${
+              layout === '1x2'
+                ? 'bg-accent/30 text-white border border-accent/50 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700 border border-transparent'
+            }`}
+            title="Split Screen Dual Viewports (1x2)"
+            aria-label="Dual split-screen layout"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
+              <line x1="12" y1="3" x2="12" y2="21" strokeWidth={2} />
+            </svg>
+          </button>
+          <button
+            onClick={() => setLayout('2x2')}
+            className={`p-1.5 rounded transition-colors ${
+              layout === '2x2'
+                ? 'bg-accent/30 text-white border border-accent/50 shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-gray-700 border border-transparent'
+            }`}
+            title="Quad Grid Viewports (2x2)"
+            aria-label="Quad grid layout"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={2} />
+              <line x1="12" y1="3" x2="12" y2="21" strokeWidth={2} />
+              <line x1="3" y1="12" x2="21" y2="12" strokeWidth={2} />
+            </svg>
+          </button>
+        </div>
+
+        {/* Multi-viewport active focus button */}
+        {layout !== '1x1' && (
+          <button
+            onClick={() => {
+              const count = layout === '1x2' ? 2 : 4;
+              setActiveViewport((activeViewportIndex + 1) % count);
+            }}
+            className="px-2.5 py-1 text-xs font-semibold rounded bg-gray-800 hover:bg-gray-700 border border-gray-600 text-cyan-300 flex items-center gap-1.5 transition-colors"
+            title="Cycle focus between viewports (Tab key)"
+          >
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span>
+              Focus:{' '}
+              {layout === '1x2'
+                ? activeViewportIndex === 0
+                  ? 'Left'
+                  : 'Right'
+                : `V${activeViewportIndex + 1}`}
+            </span>
+            <span className="text-[10px] text-gray-400">(Tab)</span>
+          </button>
+        )}
+
         {/* Slice navigation buttons */}
         <div className="flex items-center gap-1">
           <button
@@ -80,8 +168,15 @@ export default function Controls() {
           </button>
         </div>
 
-        {/* Slice slider */}
-        <div className="flex-1 flex items-center gap-3">
+        {/* Slice slider (scroll over slider or use arrows to change slice) */}
+        <div
+          className="flex-1 flex items-center gap-3"
+          onWheel={(e) => {
+            if (e.deltaY > 0) nextSlice();
+            else if (e.deltaY < 0) prevSlice();
+          }}
+          title="Scroll or drag to change slice"
+        >
           <input
             type="range"
             min={0}
@@ -126,7 +221,12 @@ export default function Controls() {
             {presets.slice(0, 3).map((preset) => (
               <button
                 key={preset.id}
-                className="px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                onClick={() => handlePresetClick(preset)}
+                className={`px-3 py-1.5 text-xs rounded transition-colors ${
+                  activePresetId === preset.id
+                    ? 'bg-accent/30 text-white font-medium border border-accent/40'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700 border border-transparent'
+                }`}
                 title={preset.description}
               >
                 {preset.name}
@@ -136,10 +236,12 @@ export default function Controls() {
         )}
       </div>
 
-      {/* Keyboard hint for first-time users */}
+      {/* Keyboard hint for users */}
       {settings.showTooltips && (
         <div className="mt-2 text-xs text-gray-600 text-center">
-          Use arrow keys to browse • R to reset view • Ctrl+scroll to zoom
+          {layout === '1x2'
+            ? 'Tab to switch active viewport • Arrow keys to browse slices • Shift+Scroll over viewport to navigate • R to reset view'
+            : 'Use arrow keys to browse • R to reset view • Two-finger pinch to zoom'}
         </div>
       )}
     </div>

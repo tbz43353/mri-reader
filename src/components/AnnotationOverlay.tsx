@@ -3,8 +3,13 @@ import { useCurrentImage, useCurrentImagePresentationState } from '../lib/store'
 import { subscribeToCamera, getViewportTransform, type ViewportTransform } from '../lib/cornerstone';
 import type { GraphicAnnotation, GraphicOverlay } from '../types';
 
-export default function AnnotationOverlay() {
-  const currentImage = useCurrentImage();
+interface AnnotationOverlayProps {
+  viewportIndex?: number;
+  viewportId?: string;
+}
+
+export default function AnnotationOverlay({ viewportIndex, viewportId }: AnnotationOverlayProps = {}) {
+  const currentImage = useCurrentImage(viewportIndex);
   const presentationState = useCurrentImagePresentationState();
   const [transform, setTransform] = useState<ViewportTransform | null>(null);
 
@@ -20,9 +25,9 @@ export default function AnnotationOverlay() {
   // Subscribe to camera changes to update overlay position
   const updateTransform = useCallback(() => {
     if (imageWidth > 0 && imageHeight > 0) {
-      setTransform(getViewportTransform(imageWidth, imageHeight));
+      setTransform(getViewportTransform(imageWidth, imageHeight, viewportId));
     }
-  }, [imageWidth, imageHeight]);
+  }, [imageWidth, imageHeight, viewportId]);
 
   useEffect(() => {
     // Get initial transform after a short delay to ensure viewport is ready

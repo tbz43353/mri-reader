@@ -55,6 +55,9 @@ export interface DicomImage {
   windowWidth?: number;
   sliceLocation?: number;
   sliceThickness?: number;
+  imagePositionPatient?: [number, number, number];
+  imageOrientationPatient?: [number, number, number, number, number, number];
+  pixelSpacing?: [number, number];
   overlays?: GraphicOverlay[];
 }
 
@@ -132,8 +135,56 @@ export interface ViewingPreset {
   applicableModalities: string[];
 }
 
+// Image visual adjustments
+export interface ImageAdjustments {
+  brightness: number; // -100 to 100, default 0
+  contrast: number;   // -100 to 100, default 0
+  gamma: number;      // 0.4 to 2.2, default 1.0
+  invert: boolean;    // default false
+  activePreset: string; // 'auto', 'soft-tissue', 'brain', 'high-contrast', 'bone', 'custom'
+}
+
 // App view state
 export type AppView = 'dashboard' | 'viewer';
+
+// Viewport split layout ('1x1' = single, '1x2' = dual side-by-side, '2x2' = quad 2x2 grid)
+export type ViewportLayout = '1x1' | '1x2' | '2x2';
+
+export interface ViewportSlot {
+  id: string; // 'mriReaderViewport-0' .. 'mriReaderViewport-3'
+  seriesInstanceUID: SeriesInstanceUID | null;
+  sliceIndex: number;
+}
+
+// Active tool for interaction
+export type ActiveTool = 'pan' | 'length' | 'angle' | 'rectangle' | 'ellipse' | 'probe';
+
+// Measurement annotation
+export interface Measurement {
+  id: string;
+  type: 'length' | 'angle' | 'rectangle' | 'ellipse';
+  viewportId: string;
+  seriesInstanceUID: SeriesInstanceUID;
+  sliceIndex: number;
+  imagePoints: [number, number][]; // coordinates in image pixel space [x, y]
+  value: number; // length in mm, angle in degrees, or area in cm^2
+  unit: string; // 'mm', '°', 'cm²'
+  stats?: {
+    mean?: number;
+    stdDev?: number;
+    min?: number;
+    max?: number;
+    areaMm2?: number;
+  };
+}
+
+// Cine auto-play settings
+export interface CineState {
+  isPlaying: boolean;
+  fps: number; // default 15
+  mode: 'loop' | 'ping-pong';
+  direction: 1 | -1;
+}
 
 // Settings
 export interface AppSettings {

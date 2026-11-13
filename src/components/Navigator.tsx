@@ -7,6 +7,9 @@ export default function Navigator() {
   const selectSeries = useViewerStore((s) => s.selectSeries);
   const clearStudy = useViewerStore((s) => s.clearStudy);
   const settings = useViewerStore((s) => s.settings);
+  const layout = useViewerStore((s) => s.layout);
+  const viewports = useViewerStore((s) => s.viewports);
+  const activeViewportIndex = useViewerStore((s) => s.activeViewportIndex);
   const keyImageUIDs = useKeyImageUIDs();
   const hasReports = useHasReports();
 
@@ -46,14 +49,22 @@ export default function Navigator() {
         <div className="space-y-1">
           {study.series.map((series) => {
             const isSelected = currentSeriesId === series.seriesInstanceUID;
+            const isInLeft = layout === '1x2' && viewports[0]?.seriesInstanceUID === series.seriesInstanceUID;
+            const isInRight = layout === '1x2' && viewports[1]?.seriesInstanceUID === series.seriesInstanceUID;
+
+            const slotIndices: number[] = [];
+            if (layout === '2x2') {
+              viewports.forEach((v, idx) => {
+                if (v.seriesInstanceUID === series.seriesInstanceUID) slotIndices.push(idx);
+              });
+            }
+
             // Create a user-friendly display name
-            // Use simplifySeriesDescription to expand abbreviations and clean up technical names
             const baseName = settings.expertMode
               ? series.seriesDescription || 'Series'
               : simplifySeriesDescription(series.seriesDescription, settings.expertMode) ||
                 getBodyRegionLabel(series.bodyPart) ||
                 'Scan';
-            // In expert mode, show series number prefix; in simple mode, just show the name
             const displayName = settings.expertMode
               ? `${series.seriesNumber}. ${baseName}`
               : baseName;
@@ -67,12 +78,20 @@ export default function Navigator() {
             return (
               <button
                 key={series.seriesInstanceUID}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/series-id', series.seriesInstanceUID);
+                  e.dataTransfer.effectAllowed = 'copyMove';
+                }}
                 onClick={() => selectSeries(series.seriesInstanceUID)}
-                className={`w-full text-left p-3 rounded-lg transition-colors ${
+                className={`w-full text-left p-3 rounded-lg transition-colors cursor-grab active:cursor-grabbing ${
                   isSelected
-                    ? 'bg-accent/20 text-white border border-accent/40'
+                    ? 'bg-accent/20 text-white border border-accent/40 shadow-sm'
+                    : isInLeft || isInRight || slotIndices.length > 0
+                    ? 'bg-gray-800/60 text-gray-200 border border-gray-700/60'
                     : 'text-gray-300 hover:bg-gray-700/50 border border-transparent'
                 }`}
+                title="Click to display, or drag into any viewport"
               >
                 <div className="flex items-center gap-2">
                   {/* Series icon */}
@@ -98,7 +117,37 @@ export default function Navigator() {
 
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate text-sm flex items-center gap-1.5" title={displayName}>
-                      {displayName}
+                      <span className="truncate">{displayName}</span>
+                      {/* 1x2 Viewport indicators */}
+                      {isInLeft && (
+                        <span
+                          className={`px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wider rounded ${
+                            activeViewportIndex === 0 ? 'bg-accent text-white shadow-xs' : 'bg-gray-700 text-gray-300'
+                          }`}
+                        >
+                          Left
+                        </span>
+                      )}
+                      {isInRight && (
+                        <span
+                          className={`px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wider rounded ${
+                            activeViewportIndex === 1 ? 'bg-accent text-white shadow-xs' : 'bg-gray-700 text-gray-300'
+                          }`}
+                        >
+                          Right
+                        </span>
+                      )}
+                      {/* 2x2 Viewport indicators */}
+                      {slotIndices.map((sIdx) => (
+                        <span
+                          key={sIdx}
+                          className={`px-1.5 py-0.2 text-[9px] font-semibold uppercase tracking-wider rounded ${
+                            activeViewportIndex === sIdx ? 'bg-accent text-white shadow-xs' : 'bg-gray-700 text-gray-300'
+                          }`}
+                        >
+                          V{sIdx + 1}
+                        </span>
+                      ))}
                       {hasKeyImages && (
                         <span title={`${keyImagesInSeries} key image${keyImagesInSeries > 1 ? 's' : ''}`}>
                           <svg

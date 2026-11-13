@@ -7,12 +7,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tbz43353/mri-reader.git"
+    "url": "https://github.com/tbz43353/mri-reader-app.git"
   },
   "bugs": {
-    "url": "https://github.com/tbz43353/mri-reader/issues"
+    "url": "https://github.com/tbz43353/mri-reader-app/issues"
   },
-  "homepage": "https://github.com/tbz43353/mri-reader#readme",
+  "homepage": "https://github.com/tbz43353/mri-reader-app#readme",
   "keywords": [
     "mri",
     "dicom",

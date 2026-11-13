@@ -25,15 +25,17 @@ function App() {
           clearStudy();
           break;
         case 'reset-view':
-          // Will be handled by Viewer component
+          // Handled by Viewer component
           break;
       }
     };
 
-    window.electronAPI.onMenuAction(handleMenuAction);
+    const unsubscribe = window.electronAPI.onMenuAction(handleMenuAction);
 
     return () => {
-      window.electronAPI.removeMenuListeners();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [clearStudy]);
 

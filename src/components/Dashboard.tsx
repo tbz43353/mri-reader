@@ -1,9 +1,13 @@
-import { useState, useCallback, useEffect, DragEvent } from 'react';
+import { useState, useCallback, useEffect, useRef, DragEvent } from 'react';
 import { useViewerStore } from '../lib/store';
-import { loadDicomFromFolder } from '../lib/dicom';
+import { loadDicomFromFolder, isPotentialDicomFile, registerInMemoryFile, clearInMemoryFiles } from '../lib/dicom';
+import { unzipSync } from 'fflate';
 
 export default function Dashboard() {
   const [isDragging, setIsDragging] = useState(false);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+
   const setLoading = useViewerStore((s) => s.setLoading);
   const updateLoadingProgress = useViewerStore((s) => s.updateLoadingProgress);
   const setError = useViewerStore((s) => s.setError);
@@ -12,58 +16,147 @@ export default function Dashboard() {
 
   // Handle opening folder
   const handleOpenFolder = useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (window.electronAPI) {
+      try {
+        setLoading(true, { phase: 'scanning', current: 0, total: 0, message: 'Opening folder...' });
 
-    try {
-      setLoading(true, { phase: 'scanning', current: 0, total: 0, message: 'Opening folder...' });
+        const result = await window.electronAPI.openDicomFolder();
+        if (!result) {
+          setLoading(false);
+          return;
+        }
 
-      const result = await window.electronAPI.openDicomFolder();
-      if (!result) {
+        const study = await loadDicomFromFolder(result.files, updateLoadingProgress);
+
+        if (study) {
+          setStudy(study);
+        } else {
+          setError('No DICOM files found in this folder.');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to open folder');
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const study = await loadDicomFromFolder(result.files, updateLoadingProgress);
-
-      if (study) {
-        setStudy(study);
-      } else {
-        setError('No DICOM files found in this folder.');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to open folder');
-    } finally {
-      setLoading(false);
+    } else {
+      // Browser mode: trigger folder file input
+      folderInputRef.current?.click();
     }
   }, [setLoading, updateLoadingProgress, setError, setStudy]);
 
-  // Handle opening ZIP (extraction now happens in main process)
+  // Handle opening ZIP
   const handleOpenZip = useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (window.electronAPI) {
+      try {
+        setLoading(true, { phase: 'extracting', current: 0, total: 0, message: 'Extracting ZIP...' });
+
+        const result = await window.electronAPI.openDicomZip();
+        if (!result) {
+          setLoading(false);
+          return;
+        }
+
+        // ZIP is already extracted in main process, just load the files
+        const study = await loadDicomFromFolder(result.files, updateLoadingProgress);
+
+        if (study) {
+          setStudy(study);
+        } else {
+          setError('No DICOM files found in this ZIP archive.');
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to open ZIP');
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Browser mode: trigger ZIP file input
+      zipInputRef.current?.click();
+    }
+  }, [setLoading, updateLoadingProgress, setError, setStudy]);
+
+  // Browser folder input change handler
+  const handleFolderInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileList = e.target.files;
+    if (!fileList || fileList.length === 0) return;
 
     try {
-      setLoading(true, { phase: 'extracting', current: 0, total: 0, message: 'Extracting ZIP...' });
+      setLoading(true, { phase: 'scanning', current: 0, total: fileList.length, message: 'Scanning files...' });
 
-      const result = await window.electronAPI.openDicomZip();
-      if (!result) {
+      clearInMemoryFiles();
+      const validPaths: string[] = [];
+
+      for (let i = 0; i < fileList.length; i++) {
+        const file = fileList[i];
+        if (isPotentialDicomFile(file.name)) {
+          const path = file.webkitRelativePath || file.name;
+          registerInMemoryFile(path, file);
+          validPaths.push(path);
+        }
+      }
+
+      if (validPaths.length === 0) {
+        setError('No DICOM files found in the selected folder.');
         setLoading(false);
         return;
       }
 
-      // ZIP is already extracted in main process, just load the files
-      const study = await loadDicomFromFolder(result.files, updateLoadingProgress);
-
+      const study = await loadDicomFromFolder(validPaths, updateLoadingProgress);
       if (study) {
         setStudy(study);
       } else {
-        setError('No DICOM files found in this ZIP archive.');
+        setError('No valid DICOM medical images found in this folder.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to open ZIP');
+      setError(err instanceof Error ? err.message : 'Failed to process folder');
     } finally {
       setLoading(false);
+      if (folderInputRef.current) folderInputRef.current.value = '';
     }
-  }, [setLoading, updateLoadingProgress, setError, setStudy]);
+  };
+
+  // Browser ZIP input change handler
+  const handleZipInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setLoading(true, { phase: 'extracting', current: 0, total: 0, message: 'Extracting ZIP archive...' });
+
+      const arrayBuffer = await file.arrayBuffer();
+      const extracted = unzipSync(new Uint8Array(arrayBuffer));
+
+      clearInMemoryFiles();
+      const validPaths: string[] = [];
+
+      for (const [filePath, data] of Object.entries(extracted)) {
+        if (filePath.endsWith('/') || filePath.includes('__MACOSX/')) continue;
+        const fileName = filePath.split('/').pop() || filePath;
+        if (isPotentialDicomFile(fileName)) {
+          registerInMemoryFile(filePath, data);
+          validPaths.push(filePath);
+        }
+      }
+
+      if (validPaths.length === 0) {
+        setError('No DICOM files found in this ZIP archive.');
+        setLoading(false);
+        return;
+      }
+
+      const study = await loadDicomFromFolder(validPaths, updateLoadingProgress);
+      if (study) {
+        setStudy(study);
+      } else {
+        setError('No valid DICOM medical images found in this ZIP archive.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to extract ZIP archive');
+    } finally {
+      setLoading(false);
+      if (zipInputRef.current) zipInputRef.current.value = '';
+    }
+  };
 
   // Drag and drop handlers
   const handleDragEnter = useCallback((e: DragEvent) => {
@@ -75,7 +168,6 @@ export default function Dashboard() {
   const handleDragLeave = useCallback((e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only set false if leaving the drop zone entirely
     if (e.currentTarget === e.target) {
       setIsDragging(false);
     }
@@ -86,15 +178,168 @@ export default function Dashboard() {
     e.stopPropagation();
   }, []);
 
-  const handleDrop = useCallback((e: DragEvent) => {
+  const handleDrop = useCallback(async (e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
 
-    // Note: In Electron, we can't directly access dropped file paths from the renderer
-    // The user needs to use the file dialogs. Show a helpful message.
-    setError('To open files, please use the "Open Folder" or "Open ZIP" buttons above, or use File menu (Cmd/Ctrl+O).');
-  }, [setError]);
+    // If running in Electron with native file access available
+    if (window.electronAPI) {
+      const files = e.dataTransfer?.files;
+      if (files && files.length > 0) {
+        try {
+          const firstFile = files[0];
+          const filePath = window.electronAPI.getPathForFile
+            ? window.electronAPI.getPathForFile(firstFile)
+            : (firstFile as unknown as { path?: string }).path;
+
+          if (filePath) {
+            setLoading(true, { phase: 'scanning', current: 0, total: 0, message: 'Opening dropped file...' });
+
+            const result = await window.electronAPI.openPath(filePath);
+            if (!result || result.files.length === 0) {
+              setError('No DICOM files found in the dropped item.');
+              setLoading(false);
+              return;
+            }
+
+            const study = await loadDicomFromFolder(result.files, updateLoadingProgress);
+            if (study) {
+              setStudy(study);
+            } else {
+              setError('No valid DICOM medical images could be parsed.');
+            }
+            setLoading(false);
+            return;
+          }
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to open dropped file');
+          setLoading(false);
+          return;
+        }
+      }
+    }
+
+    // Web browser mode (or Electron fallback without native path)
+    const items = e.dataTransfer?.items;
+    const files = e.dataTransfer?.files;
+
+    if (!files || files.length === 0) return;
+
+    try {
+      // Check if a single ZIP file was dropped
+      if (files.length === 1 && (files[0].name.toLowerCase().endsWith('.zip') || files[0].type.includes('zip'))) {
+        setLoading(true, { phase: 'extracting', current: 0, total: 0, message: 'Extracting dropped ZIP archive...' });
+
+        const arrayBuf = await files[0].arrayBuffer();
+        const extracted = unzipSync(new Uint8Array(arrayBuf));
+
+        clearInMemoryFiles();
+        const validPaths: string[] = [];
+
+        for (const [filePath, data] of Object.entries(extracted)) {
+          if (filePath.endsWith('/') || filePath.includes('__MACOSX/')) continue;
+          const fileName = filePath.split('/').pop() || filePath;
+          if (isPotentialDicomFile(fileName)) {
+            registerInMemoryFile(filePath, data);
+            validPaths.push(filePath);
+          }
+        }
+
+        if (validPaths.length === 0) {
+          setError('No DICOM files found in this ZIP archive.');
+          setLoading(false);
+          return;
+        }
+
+        const study = await loadDicomFromFolder(validPaths, updateLoadingProgress);
+        if (study) setStudy(study);
+        else setError('No valid DICOM medical images found in this ZIP archive.');
+        setLoading(false);
+        return;
+      }
+
+      // Handle dropped folder or list of files via HTML5 directory entry traversal
+      setLoading(true, { phase: 'scanning', current: 0, total: 0, message: 'Processing dropped files...' });
+      const droppedFiles: File[] = [];
+
+      interface WebkitEntry {
+        isFile: boolean;
+        isDirectory: boolean;
+        name: string;
+        file: (success: (f: File) => void, error?: () => void) => void;
+        createReader: () => {
+          readEntries: (success: (entries: WebkitEntry[]) => void, error?: () => void) => void;
+        };
+      }
+
+      if (items && items.length > 0 && typeof (items[0] as unknown as { webkitGetAsEntry?: () => unknown }).webkitGetAsEntry === 'function') {
+        const queue: WebkitEntry[] = [];
+        for (let i = 0; i < items.length; i++) {
+          const entry = (items[i] as unknown as { webkitGetAsEntry: () => WebkitEntry | null }).webkitGetAsEntry();
+          if (entry) queue.push(entry);
+        }
+
+        const readEntry = async (entry: WebkitEntry, currentPath = '') => {
+          if (entry.isFile) {
+            await new Promise<void>((resolve) => {
+              entry.file((file: File) => {
+                const relativePath = currentPath ? `${currentPath}/${file.name}` : file.name;
+                Object.defineProperty(file, 'webkitRelativePath', { value: relativePath, configurable: true });
+                droppedFiles.push(file);
+                resolve();
+              }, () => resolve());
+            });
+          } else if (entry.isDirectory) {
+            const dirReader = entry.createReader();
+            const readEntries = async () => {
+              const entries: WebkitEntry[] = await new Promise((resolve) => dirReader.readEntries(resolve, () => resolve([])));
+              if (entries.length > 0) {
+                for (const child of entries) {
+                  await readEntry(child, currentPath ? `${currentPath}/${entry.name}` : entry.name);
+                }
+                await readEntries();
+              }
+            };
+            await readEntries();
+          }
+        };
+
+        for (const entry of queue) {
+          await readEntry(entry);
+        }
+      } else {
+        for (let i = 0; i < files.length; i++) {
+          droppedFiles.push(files[i]);
+        }
+      }
+
+      clearInMemoryFiles();
+      const validPaths: string[] = [];
+
+      for (const file of droppedFiles) {
+        if (isPotentialDicomFile(file.name)) {
+          const path = file.webkitRelativePath || file.name;
+          registerInMemoryFile(path, file);
+          validPaths.push(path);
+        }
+      }
+
+      if (validPaths.length === 0) {
+        setError('No DICOM files found in the dropped item.');
+        setLoading(false);
+        return;
+      }
+
+      const study = await loadDicomFromFolder(validPaths, updateLoadingProgress);
+      if (study) setStudy(study);
+      else setError('No valid DICOM medical images could be parsed.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process dropped files');
+    } finally {
+      setLoading(false);
+    }
+  }, [setLoading, updateLoadingProgress, setError, setStudy]);
 
   // Listen for menu actions
   useEffect(() => {
@@ -111,10 +356,12 @@ export default function Dashboard() {
       }
     };
 
-    window.electronAPI.onMenuAction(handleMenuAction);
+    const unsubscribe = window.electronAPI.onMenuAction(handleMenuAction);
 
     return () => {
-      window.electronAPI.removeMenuListeners();
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
     };
   }, [handleOpenFolder, handleOpenZip]);
 
@@ -160,6 +407,25 @@ export default function Dashboard() {
           View your medical imaging files privately on your computer.
           {!settings.expertMode && ' No internet required.'}
         </p>
+
+        {/* Hidden inputs for browser file selection */}
+        <input
+          ref={folderInputRef}
+          type="file"
+          // @ts-expect-error webkitdirectory is standard in browsers but non-standard TS attribute
+          webkitdirectory=""
+          directory=""
+          multiple
+          className="hidden"
+          onChange={handleFolderInputChange}
+        />
+        <input
+          ref={zipInputRef}
+          type="file"
+          accept=".zip,application/zip"
+          className="hidden"
+          onChange={handleZipInputChange}
+        />
 
         {/* Action buttons */}
         <div className="space-y-3">
